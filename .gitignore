@@ -1,0 +1,30 @@
+# Pliki systemowe
+.DS_Store
+Thumbs.db
+
+# Logi i pliki tymczasowe
+*.log
+node_modules/
+*.tmp
+*.bak
+*.swp
+*.swo
+.cache/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Konfiguracje lokalne
+.idea/
+.vscode/
+.env
+.env.*
+
+# Pliki robocze i listy zadań
+todo.md
+MASTER_TODO.md
+README_TEMPLATE.md
+
+# Build
+dist/
+build/

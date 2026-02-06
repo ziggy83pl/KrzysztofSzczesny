@@ -26,16 +26,44 @@ document.addEventListener('DOMContentLoaded', () => {
     // Obsługa Formularza Kontaktowego
     const contactForm = document.getElementById('contact-form');
     if (contactForm) {
+        // Automatyczne formatowanie numeru telefonu
+        const phoneInput = contactForm.querySelector('input[name="telefon"]');
+        if (phoneInput) {
+            phoneInput.addEventListener('input', function(e) {
+                let number = e.target.value.replace(/\D/g, '');
+                if (number.length > 9) number = number.substring(0, 9);
+                
+                if (number.length > 6) {
+                    e.target.value = number.substring(0, 3) + ' ' + number.substring(3, 6) + ' ' + number.substring(6);
+                } else if (number.length > 3) {
+                    e.target.value = number.substring(0, 3) + ' ' + number.substring(3);
+                } else {
+                    e.target.value = number;
+                }
+            });
+        }
+
         contactForm.addEventListener('submit', function(e) {
             e.preventDefault();
+            
+            const telefonRaw = phoneInput.value.replace(/\D/g, '');
+            if (telefonRaw.length !== 9) {
+                phoneInput.classList.add('shake-animation');
+                setTimeout(() => {
+                    phoneInput.classList.remove('shake-animation');
+                }, 500);
+                alert("Proszę podać poprawny, 9-cyfrowy numer telefonu.");
+                return;
+            }
+
             const btn = contactForm.querySelector('button');
             const originalText = btn.innerText;
             
             btn.innerText = 'Wysyłanie...';
             btn.disabled = true;
 
-            // Używamy FormSubmit (zmień email na właściwy dla Krzysztofa)
-            fetch("https://formsubmit.co/ajax/krzysztofszczesny79@gmail.com", {
+            // Używamy FormSubmit
+            fetch("https://formsubmit.co/ajax/krzysztofszczesny79@gmail.com", { // Zmień email na właściwy
                 method: "POST",
                 headers: { 
                     'Content-Type': 'application/json',
@@ -46,7 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     telefon: contactForm.querySelector('[name="telefon"]').value,
                     email: contactForm.querySelector('[name="email"]').value,
                     wiadomosc: contactForm.querySelector('[name="wiadomosc"]').value,
-                    _subject: "--> Nowe zapytanie ze strony Krzysztof Szczęsny <---",
+                    _subject: "--> Nowe zapytanie: Krzysztof Szczęsny <---",
                     _autoresponse: "Dziękujemy za wiadomość! Wkrótce się skontaktujemy.",
                 })
             })
@@ -65,29 +93,44 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- PWA: Obsługa Instalacji ---
+    // --- PWA: Obsługa Instalacji i Aktualizacji ---
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js').catch(err => console.log('SW Error:', err));
+        navigator.serviceWorker.register('sw.js').then(reg => {
+            
+            // 1. Sprawdź, czy nowy SW już czeka (np. po odświeżeniu strony w tle)
+            if (reg.waiting) {
+                showUpdateBanner(reg.waiting);
+            }
+
+            // 2. Nasłuchuj na pojawienie się nowego SW
+            reg.addEventListener('updatefound', () => {
+                const newWorker = reg.installing;
+                newWorker.addEventListener('statechange', () => {
+                    // Jeśli nowy SW został zainstalowany, ale jeszcze nie aktywny
+                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                        showUpdateBanner(newWorker);
+                    }
+                });
+            });
+        }).catch(err => console.log('SW Error:', err));
     }
+
+    // Przeładowanie strony, gdy nowy SW przejmie kontrolę
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!refreshing) {
+            window.location.reload();
+            refreshing = true;
+        }
+    });
 
     let deferredPrompt;
     const installBtn = document.getElementById('install-btn');
-    const isAppInstalled = () =>
-        window.matchMedia('(display-mode: standalone)').matches ||
-        window.navigator.standalone === true;
-
-    if (installBtn && isAppInstalled()) {
-        installBtn.style.display = 'none';
-    }
 
     window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault();
         deferredPrompt = e;
-        if (installBtn && !isAppInstalled()) installBtn.style.display = 'inline-block';
-    });
-
-    window.addEventListener('appinstalled', () => {
-        if (installBtn) installBtn.style.display = 'none';
+        if (installBtn) installBtn.style.display = 'inline-block';
     });
 
     if (installBtn) {
@@ -95,34 +138,29 @@ document.addEventListener('DOMContentLoaded', () => {
             if (installBtn) installBtn.style.display = 'none';
             if (deferredPrompt) {
                 deferredPrompt.prompt();
-                deferredPrompt.userChoice.then(() => {
+                deferredPrompt.userChoice.then((choiceResult) => {
                     deferredPrompt = null;
                 });
             }
         });
     }
 
-    // --- Udostępnianie ---
-    const shareBtn = document.getElementById('share-btn');
-    if (shareBtn) {
-        shareBtn.addEventListener('click', async () => {
-            const shareData = {
-                title: 'Ogrodnictwo, malowanie, hydraulika – Krzysztof Szczęsny',
-                text: 'Ogrodnictwo, usługi malarskie i drobne prace hydrauliczne. Szybko, solidnie, terminowo.',
-                url: window.location.href
-            };
+    // Funkcja pokazująca pasek aktualizacji
+    function showUpdateBanner(worker) {
+        const banner = document.getElementById('update-banner');
+        const btn = document.getElementById('reload-btn');
+        const closeBtn = document.getElementById('close-update-btn');
 
-            try {
-                if (navigator.share) {
-                    await navigator.share(shareData);
-                } else if (navigator.clipboard) {
-                    await navigator.clipboard.writeText(`${shareData.text} ${shareData.url}`);
-                    shareBtn.innerText = 'Skopiowano link';
-                    setTimeout(() => (shareBtn.innerText = 'Udostępnij'), 2000);
-                }
-            } catch (err) {
-                console.error('Share error:', err);
+        if (banner && btn) {
+            banner.classList.add('show');
+            btn.onclick = () => {
+                worker.postMessage({ type: 'SKIP_WAITING' });
+            };
+            if (closeBtn) {
+                closeBtn.onclick = () => {
+                    banner.classList.remove('show');
+                };
             }
-        });
+        }
     }
 });
