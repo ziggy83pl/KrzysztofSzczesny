@@ -13,6 +13,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
 
+    // --- Obsługa przycisku Udostępnij (Web Share API) ---
+    const shareButtons = document.querySelectorAll('.btn-share');
+    shareButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (navigator.share) {
+                navigator.share({
+                    title: document.title,
+                    text: 'Polecam usługi remontowo-ogrodowe Krzysztofa Szczęsnego',
+                    url: window.location.href
+                }).catch(console.error);
+            } else {
+                alert('Twoja przeglądarka nie obsługuje funkcji udostępniania.');
+            }
+        });
+    });
+
     // --- Efekt Przewijania Paska Nawigacji ---
     const topBar = document.querySelector('.top-bar');
     window.addEventListener('scroll', () => {
